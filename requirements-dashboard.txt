@@ -1,0 +1,6 @@
+# Dashboard Dependencies for Faculty Demonstration (Streamlit)
+# Install into the existing virtual environment:
+#   pip install -r requirements-dashboard.txt
+
+streamlit>=1.35.0
+

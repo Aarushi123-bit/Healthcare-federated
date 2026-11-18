@@ -1,0 +1,107 @@
+# ==============================================================================
+# Privacy-Preserving Federated Learning for Healthcare (FL-DP) Configuration
+# ==============================================================================
+
+project:
+  name: "healthcare-fl"
+  title: "Privacy-Preserving Federated Learning for Healthcare"
+  version: "0.1.0"
+  seed: 42
+  deterministic: true
+
+# ------------------------------------------------------------------------------
+# Dataset & Partitioning Settings
+# ------------------------------------------------------------------------------
+dataset:
+  name: "nih_chestxray14"                   # Supported: "nih_chestxray14", "heart_disease", "stroke"
+  raw_dir: "D:/Downloads/HealthcareDataNIH_ChestXray14"
+  processed_dir: "data/processed"
+  test_ratio: 0.2
+  val_ratio: 0.1                            # Client-level validation split for adaptive signals
+
+partitioning:
+  num_clients: 5                            # Number of simulated hospitals
+  strategy: "non_iid_dirichlet"             # Options: "iid", "non_iid_dirichlet", "natural"
+  dirichlet_alpha: 0.5                      # Lower alpha indicates higher non-IID label skew
+  quantity_skew: true                       # If true, hospital sample sizes will vary
+  min_samples_per_client: 30
+
+# ------------------------------------------------------------------------------
+# Diagnostic Neural Network Architecture
+# ------------------------------------------------------------------------------
+model:
+  architecture: "TabularMLP"                # GroupNorm-based MLP for Opacus compatibility
+  hidden_dims: [64, 32]
+  dropout: 0.1
+  normalization: "group_norm"               # Options: "group_norm", "layer_norm" (no batch_norm for DP-SGD)
+  num_groups: 4                             # Number of groups for GroupNorm
+
+# ------------------------------------------------------------------------------
+# Federated Learning (FedAvg) Hyperparameters
+# ------------------------------------------------------------------------------
+federated:
+  num_rounds: 20
+  fraction_fit: 1.0                         # Fraction of clients sampled each round (1.0 = all hospitals)
+  fraction_evaluate: 1.0
+  min_fit_clients: 5
+  min_available_clients: 5
+  local_epochs: 3
+  batch_size: 16
+  learning_rate: 0.01
+  momentum: 0.9
+  weight_decay: 1.0e-4
+
+# ------------------------------------------------------------------------------
+# Differential Privacy (DP-SGD & Adaptive Policy)
+# ------------------------------------------------------------------------------
+privacy:
+  # Mode of the experiment: "none", "fixed_dp", or "adaptive_dp"
+  mode: "adaptive_dp"
+  target_delta: 1.0e-5                      # delta should be < 1 / total_dataset_size
+
+  # Fixed-DP baseline parameters
+  fixed:
+    max_grad_norm: 1.0
+    noise_multiplier: 1.0
+
+  # Bounded Client-Aware Adaptive DP policy
+  adaptive:
+    # Characterization signals to use
+    signals:
+      use_sample_volume: true
+      use_class_imbalance: true
+      use_recent_validation: true
+      use_update_sensitivity: true
+
+    # Bounded constraints for clipping and noise modulation
+    clipping_bounds:
+      min_clip: 0.5
+      max_clip: 2.5
+      default_clip: 1.0
+
+    noise_bounds:
+      min_noise: 0.5
+      max_noise: 2.0
+      default_noise: 1.0
+
+    # Privacy budget limit per client
+    max_cumulative_epsilon: 10.0
+
+# ------------------------------------------------------------------------------
+# Evaluation, Logging & Outputs
+# ------------------------------------------------------------------------------
+evaluation:
+  metrics:
+    - "accuracy"
+    - "precision"
+    - "recall"
+    - "f1_macro"
+    - "f1_weighted"
+    - "roc_auc"
+  client_variance_metric: "f1_macro"        # Metric used to compute fairness / performance variance across hospitals
+
+output:
+  results_dir: "results"
+  plots_dir: "results/plots"
+  logs_dir: "results/logs"
+  save_checkpoints: true
